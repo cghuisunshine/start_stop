@@ -102,6 +102,23 @@
         color: var(--muted);
       }
 
+      .sidebar-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: start;
+      }
+
+      .storage-status {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .storage-status.is-error {
+        color: var(--danger);
+      }
+
       .section {
         margin-top: 24px;
       }
@@ -156,6 +173,45 @@
 
       .delete-button {
         color: var(--danger);
+      }
+
+      .config-wrap {
+        position: relative;
+      }
+
+      .menu-button {
+        width: 38px;
+        padding: 0;
+      }
+
+      .config-menu {
+        position: absolute;
+        top: 46px;
+        right: 0;
+        z-index: 5;
+        width: min(320px, calc(100vw - 36px));
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 14px;
+      }
+
+      .config-menu label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 620;
+      }
+
+      .config-help {
+        margin: 8px 0 12px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .config-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
       }
 
       .layout {
@@ -333,8 +389,25 @@
   <body>
     <div class="app">
       <aside class="sidebar">
-        <h1 class="title">Activity Time</h1>
-        <p class="description">Start, stop, and keep the log.</p>
+        <div class="sidebar-header">
+          <div>
+            <h1 class="title">Activity Time</h1>
+            <p class="description">Start, stop, and keep the log.</p>
+          </div>
+          <div class="config-wrap">
+            <button class="menu-button" id="config-toggle" type="button" aria-expanded="false" aria-controls="config-menu" aria-label="Storage settings">☰</button>
+            <form class="config-menu hidden" id="config-menu">
+              <label for="remote-token">Remote token</label>
+              <input id="remote-token" autocomplete="off" type="password" placeholder="Bearer token">
+              <p class="config-help">Saved in this browser. Leave empty to use local storage only.</p>
+              <div class="config-actions">
+                <button id="clear-token" type="button">Clear</button>
+                <button class="primary" type="submit">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <p class="storage-status" id="storage-status">Loading remote storage...</p>
 
         <section class="section" aria-labelledby="people-title">
           <h2 class="section-title" id="people-title">People</h2>
@@ -409,6 +482,27 @@
             activeSessions: {},
             records: [],
             totalRange: "today",
+          };
+        }
+
+        function hydrateState(saved) {
+          if (!saved || typeof saved !== "object") {
+            return createInitialState();
+          }
+
+          const initial = createInitialState();
+          return {
+            ...initial,
+            ...saved,
+            people: Array.isArray(saved.people) ? saved.people : [],
+            activities: Array.isArray(saved.activities) && saved.activities.length
+              ? saved.activities
+              : initial.activities,
+            activeSessions: saved.activeSessions && typeof saved.activeSessions === "object"
+              ? saved.activeSessions
+              : {},
+            records: Array.isArray(saved.records) ? saved.records : [],
+            totalRange: saved.totalRange === "allTime" ? "allTime" : "today",
           };
         }
 
@@ -566,6 +660,174 @@
           return parts.join(" ");
         }
 
+        function createLocalStore(options) {
+          const storage = options.storage;
+          const key = options.key;
+          return {
+            load() {
+              const raw = storage.getItem(key);
+              return raw ? JSON.parse(raw) : null;
+            },
+            save(content) {
+              storage.setItem(key, JSON.stringify(content));
+            },
+          };
+        }
+
+        function createConfigStore(options) {
+          const storage = options.storage;
+          const key = options.key;
+          return {
+            loadToken() {
+              try {
+                const raw = storage.getItem(key);
+                if (!raw) {
+                  return "";
+                }
+                const config = JSON.parse(raw);
+                return typeof config.token === "string" ? config.token : "";
+              } catch {
+                return "";
+              }
+            },
+            saveToken(token) {
+              const cleanToken = String(token || "").trim();
+              if (!cleanToken) {
+                storage.removeItem(key);
+                return;
+              }
+              storage.setItem(key, JSON.stringify({ token: cleanToken }));
+            },
+          };
+        }
+
+        function createRemoteStore(options) {
+          const baseUrl = options.baseUrl.replace(/\/$/, "");
+          const token = options.token;
+          const path = options.path;
+          const fetcher = options.fetcher || window.fetch.bind(window);
+          const timeoutMs = options.timeoutMs || 8000;
+
+          function headers(extra) {
+            return {
+              Authorization: "Bearer " + token,
+              ...extra,
+            };
+          }
+
+          function fileUrl() {
+            return baseUrl + "/files?path=" + encodeURIComponent(path);
+          }
+
+          async function readContent(response) {
+            const body = await response.json();
+            if (body && Object.prototype.hasOwnProperty.call(body, "content")) {
+              return body.content;
+            }
+            return body;
+          }
+
+          async function write(method, content) {
+            const response = await fetchWithTimeout(baseUrl + "/files", {
+              method,
+              headers: headers({ "Content-Type": "application/json" }),
+              body: JSON.stringify({ path, content }),
+            });
+            if (!response.ok) {
+              throw new Error("Remote save failed with HTTP " + response.status);
+            }
+          }
+
+          async function fetchWithTimeout(url, options) {
+            if (!window.AbortController) {
+              return fetcher(url, options);
+            }
+
+            const controller = new window.AbortController();
+            const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+            try {
+              return await fetcher(url, {
+                ...options,
+                signal: controller.signal,
+              });
+            } finally {
+              window.clearTimeout(timeout);
+            }
+          }
+
+          return {
+            async load() {
+              const response = await fetchWithTimeout(fileUrl(), {
+                method: "GET",
+                headers: headers(),
+              });
+              if (response.status === 404) {
+                return null;
+              }
+              if (!response.ok) {
+                throw new Error("Remote load failed with HTTP " + response.status);
+              }
+              return readContent(response);
+            },
+            async save(content) {
+              try {
+                await write("PUT", content);
+              } catch (error) {
+                if (!/HTTP 404/.test(error.message)) {
+                  throw error;
+                }
+                await write("POST", content);
+              }
+            },
+          };
+        }
+
+        function createPersistentStore(options) {
+          const localStore = options.localStore;
+          const remoteStore = options.remoteStore;
+
+          return {
+            async load() {
+              if (remoteStore) {
+                try {
+                  const remoteState = await remoteStore.load();
+                  if (remoteState) {
+                    localStore.save(remoteState);
+                    return { state: remoteState, source: "remote" };
+                  }
+                } catch (error) {
+                  const localState = localStore.load();
+                  return { state: localState, source: "local", error };
+                }
+              }
+
+              const localState = localStore.load();
+              if (remoteStore && localState) {
+                try {
+                  await remoteStore.save(localState);
+                  return { state: localState, source: "remote" };
+                } catch (error) {
+                  return { state: localState, source: "local", error };
+                }
+              }
+
+              return { state: localState, source: localState ? "local" : "empty" };
+            },
+            async save(content) {
+              localStore.save(content);
+              if (!remoteStore) {
+                return { source: "local" };
+              }
+              try {
+                await remoteStore.save(content);
+                return { source: "remote" };
+              } catch (error) {
+                return { source: "local", error };
+              }
+            },
+          };
+        }
+
         function createId() {
           if (window.crypto && typeof window.crypto.randomUUID === "function") {
             return window.crypto.randomUUID();
@@ -582,6 +844,11 @@
           stopSession,
           getTotals,
           formatDuration,
+          hydrateState,
+          createLocalStore,
+          createConfigStore,
+          createRemoteStore,
+          createPersistentStore,
         };
       })();
     </script>
@@ -589,8 +856,23 @@
     <script type="text/javascript">
       (function () {
         const STORAGE_KEY = "start-stop-activity-state-v1";
+        const CONFIG_KEY = "start-stop-remote-config-v1";
+        const REMOTE_CONFIG = {
+          baseUrl: "https://home.gochatus.org:8443",
+          path: "/configs/start-stop-activity-state.json",
+        };
         const logic = window.StartStopLogic;
-        let state = loadState();
+        const localStore = logic.createLocalStore({
+          storage: localStorage,
+          key: STORAGE_KEY,
+        });
+        const configStore = logic.createConfigStore({
+          storage: localStorage,
+          key: CONFIG_KEY,
+        });
+        let state = logic.createInitialState();
+        let storage = createStorage();
+        let isStorageLoading = true;
 
         const els = {
           personForm: document.querySelector("#person-form"),
@@ -606,6 +888,11 @@
           startButton: document.querySelector("#start-button"),
           stopButton: document.querySelector("#stop-button"),
           status: document.querySelector("#status"),
+          storageStatus: document.querySelector("#storage-status"),
+          configToggle: document.querySelector("#config-toggle"),
+          configMenu: document.querySelector("#config-menu"),
+          remoteToken: document.querySelector("#remote-token"),
+          clearToken: document.querySelector("#clear-token"),
           historyList: document.querySelector("#history-list"),
           totalsList: document.querySelector("#totals-list"),
           todayTab: document.querySelector("#today-tab"),
@@ -651,36 +938,38 @@
           saveAndRender();
         });
 
+        els.configToggle.addEventListener("click", () => {
+          const isOpen = !els.configMenu.classList.toggle("hidden");
+          els.configToggle.setAttribute("aria-expanded", String(isOpen));
+          if (isOpen) {
+            els.remoteToken.value = configStore.loadToken();
+            els.remoteToken.focus();
+          }
+        });
+
+        els.configMenu.addEventListener("submit", (event) => {
+          event.preventDefault();
+          configStore.saveToken(els.remoteToken.value);
+          closeConfigMenu();
+          reloadStorage();
+        });
+
+        els.clearToken.addEventListener("click", () => {
+          els.remoteToken.value = "";
+          configStore.saveToken("");
+          closeConfigMenu();
+          reloadStorage();
+        });
+
         setInterval(renderTimerOnly, 1000);
         render();
-
-        function loadState() {
-          try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (!raw) {
-              return logic.createInitialState();
-            }
-            const saved = JSON.parse(raw);
-            return {
-              ...logic.createInitialState(),
-              ...saved,
-              people: Array.isArray(saved.people) ? saved.people : [],
-              activities: Array.isArray(saved.activities) && saved.activities.length
-                ? saved.activities
-                : logic.createInitialState().activities,
-              activeSessions: saved.activeSessions || {},
-              records: Array.isArray(saved.records) ? saved.records : [],
-            };
-          } catch {
-            return logic.createInitialState();
-          }
-        }
-
-        function saveState() {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-        }
+        reloadStorage();
 
         function tryAction(action) {
+          if (isStorageLoading) {
+            setStatus("Wait for storage to finish loading.", true);
+            return;
+          }
           try {
             action();
             setStatus("");
@@ -691,9 +980,59 @@
           }
         }
 
-        function saveAndRender() {
-          saveState();
+        function createStorage() {
+          const token = configStore.loadToken();
+          const remoteStore = token
+            ? logic.createRemoteStore({
+                ...REMOTE_CONFIG,
+                token,
+              })
+            : null;
+          return logic.createPersistentStore({ localStore, remoteStore });
+        }
+
+        async function reloadStorage() {
+          isStorageLoading = true;
+          setStorageStatus(configStore.loadToken() ? "Loading remote storage..." : "Using local storage. Add a token for remote sync.");
+          renderTimerOnly();
+
+          storage = createStorage();
+          const result = await storage.load();
+          state = logic.hydrateState(result.state);
+          isStorageLoading = false;
+
+          if (result.source === "remote") {
+            setStorageStatus("Remote storage connected.");
+          } else if (configStore.loadToken() && result.source === "local") {
+            setStorageStatus("Using local backup. Remote storage unavailable.", true);
+          } else if (result.source === "local") {
+            setStorageStatus("Using local storage. Add a token for remote sync.");
+          } else {
+            const saveResult = await storage.save(state);
+            setStorageStatusFromSave(saveResult);
+          }
+
           render();
+        }
+
+        function saveAndRender() {
+          render();
+          storage.save(state).then(setStorageStatusFromSave);
+        }
+
+        function setStorageStatusFromSave(result) {
+          if (result.source === "remote") {
+            setStorageStatus("Saved to remote storage.");
+          } else if (configStore.loadToken()) {
+            setStorageStatus("Saved locally. Remote storage unavailable.", true);
+          } else {
+            setStorageStatus("Saved to local storage.");
+          }
+        }
+
+        function closeConfigMenu() {
+          els.configMenu.classList.add("hidden");
+          els.configToggle.setAttribute("aria-expanded", "false");
         }
 
         function render() {
@@ -766,8 +1105,8 @@
           const activeSession = selectedPerson ? state.activeSessions[selectedPerson] : null;
 
           els.currentPerson.textContent = selectedPerson || "No person selected";
-          els.startButton.disabled = !selectedPerson || !state.selectedActivity || Boolean(activeSession);
-          els.stopButton.disabled = !selectedPerson || !activeSession;
+          els.startButton.disabled = isStorageLoading || !selectedPerson || !state.selectedActivity || Boolean(activeSession);
+          els.stopButton.disabled = isStorageLoading || !selectedPerson || !activeSession;
 
           if (!selectedPerson) {
             els.elapsed.textContent = "0s";
@@ -858,6 +1197,11 @@
         function setStatus(message, isError) {
           els.status.textContent = message;
           els.status.classList.toggle("is-error", Boolean(isError));
+        }
+
+        function setStorageStatus(message, isError) {
+          els.storageStatus.textContent = message;
+          els.storageStatus.classList.toggle("is-error", Boolean(isError));
         }
 
         function emptyNode(message) {

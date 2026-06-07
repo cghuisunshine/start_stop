@@ -110,3 +110,96 @@ test("totals group duration by person and activity", () => {
   assert.equal(totals.today.get("Ada|Swimming").durationMs, 1_800_000);
   assert.equal(totals.today.has("Ben|Gym"), false);
 });
+
+test("remote store reads authenticated JSON content by path", async () => {
+  const logic = loadAppLogic();
+  const calls = [];
+  const fetcher = async (url, options) => {
+    calls.push({ url, options });
+    return {
+      ok: true,
+      async json() {
+        return {
+          path: "/configs/start-stop-activity-state.json",
+          content: { records: [{ id: "remote-record" }] },
+        };
+      },
+    };
+  };
+
+  const store = logic.createRemoteStore({
+    baseUrl: "https://example.test",
+    token: "secret-token",
+    path: "/configs/start-stop-activity-state.json",
+    fetcher,
+  });
+
+  const state = await store.load();
+
+  assert.deepEqual(state, { records: [{ id: "remote-record" }] });
+  assert.equal(
+    calls[0].url,
+    "https://example.test/files?path=%2Fconfigs%2Fstart-stop-activity-state.json"
+  );
+  assert.equal(calls[0].options.method, "GET");
+  assert.equal(calls[0].options.headers.Authorization, "Bearer secret-token");
+});
+
+test("persistent store saves local backup before replacing remote content", async () => {
+  const logic = loadAppLogic();
+  const localWrites = [];
+  const remoteWrites = [];
+  const localStore = {
+    load() {
+      return null;
+    },
+    save(content) {
+      localWrites.push(content);
+    },
+  };
+  const remoteStore = {
+    load() {
+      return null;
+    },
+    async save(content) {
+      remoteWrites.push(content);
+    },
+  };
+  const store = logic.createPersistentStore({ localStore, remoteStore });
+  const state = { records: [{ id: "new-record" }] };
+
+  await store.save(state);
+
+  assert.deepEqual(localWrites, [state]);
+  assert.deepEqual(remoteWrites, [state]);
+});
+
+test("config store keeps bearer token in localStorage", () => {
+  const logic = loadAppLogic();
+  const memory = new Map();
+  const storage = {
+    getItem(key) {
+      return memory.get(key) || null;
+    },
+    setItem(key, value) {
+      memory.set(key, value);
+    },
+    removeItem(key) {
+      memory.delete(key);
+    },
+  };
+  const configStore = logic.createConfigStore({
+    storage,
+    key: "remote-config",
+  });
+
+  configStore.saveToken(" secret-token ");
+
+  assert.equal(memory.get("remote-config"), JSON.stringify({ token: "secret-token" }));
+  assert.equal(configStore.loadToken(), "secret-token");
+
+  configStore.saveToken("");
+
+  assert.equal(configStore.loadToken(), "");
+  assert.equal(memory.has("remote-config"), false);
+});
