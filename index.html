@@ -652,6 +652,10 @@
           return deleted;
         }
 
+        function formatDeleteRecordPrompt(record) {
+          return "Delete " + record.personName + " · " + record.activityName + " record?";
+        }
+
         function getTotals(records, referenceDate) {
           const today = new Map();
           const allTime = new Map();
@@ -948,6 +952,7 @@
           startSession,
           stopSession,
           deleteRecord,
+          formatDeleteRecordPrompt,
           getTotals,
           getRecordsForPerson,
           formatDuration,
@@ -1326,18 +1331,26 @@
             deleteButton.textContent = "Delete";
             deleteButton.setAttribute("aria-label", "Delete " + record.personName + " " + record.activityName + " record");
             deleteButton.addEventListener("click", () => {
-              tryAction(() => {
-                logic.deleteRecord(state, record.id);
-              });
+              requestDeleteRecord(record, shell);
             });
 
-            attachSwipeToReveal(item, shell);
+            attachSwipeToDelete(item, shell, record);
             shell.append(deleteButton, item);
             els.historyList.appendChild(shell);
           });
         }
 
-        function attachSwipeToReveal(item, shell) {
+        function requestDeleteRecord(record, shell) {
+          shell.classList.remove("is-open");
+          if (!window.confirm(logic.formatDeleteRecordPrompt(record))) {
+            return;
+          }
+          tryAction(() => {
+            logic.deleteRecord(state, record.id);
+          });
+        }
+
+        function attachSwipeToDelete(item, shell, record) {
           let startX = 0;
           let startY = 0;
           let isSwiping = false;
@@ -1360,7 +1373,12 @@
               return;
             }
 
-            shell.classList.toggle("is-open", deltaX < 0);
+            if (deltaX < 0) {
+              requestDeleteRecord(record, shell);
+              return;
+            }
+
+            shell.classList.remove("is-open");
           });
 
           item.addEventListener("keydown", (event) => {

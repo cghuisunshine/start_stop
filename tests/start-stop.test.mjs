@@ -199,6 +199,16 @@ test("deleting a missing record throws", () => {
   assert.throws(() => logic.deleteRecord(state, "missing"), /Record not found/);
 });
 
+test("delete record prompt names the selected record", () => {
+  const logic = loadAppLogic();
+  const message = logic.formatDeleteRecordPrompt({
+    personName: "Ada",
+    activityName: "Gym",
+  });
+
+  assert.equal(message, "Delete Ada · Gym record?");
+});
+
 test("remote store reads authenticated JSON content by path", async () => {
   const logic = loadAppLogic();
   const calls = [];
