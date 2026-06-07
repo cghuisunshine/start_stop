@@ -116,6 +116,89 @@ test("totals group duration by person and activity", () => {
   assert.equal(totals.today.has("Ben|Gym"), false);
 });
 
+test("selected-person records only include the current user", () => {
+  const logic = loadAppLogic();
+  const records = [
+    {
+      id: "ada",
+      personName: "Ada",
+      activityName: "Gym",
+      startAt: new Date("2026-06-07T08:00:00").getTime(),
+      stopAt: new Date("2026-06-07T09:00:00").getTime(),
+      durationMs: 3_600_000,
+    },
+    {
+      id: "ben",
+      personName: "Ben",
+      activityName: "Gym",
+      startAt: new Date("2026-06-07T10:00:00").getTime(),
+      stopAt: new Date("2026-06-07T10:30:00").getTime(),
+      durationMs: 1_800_000,
+    },
+  ];
+
+  const visibleRecords = logic.getRecordsForPerson(records, "Ada");
+  const totals = logic.getTotals(visibleRecords, new Date("2026-06-07T12:00:00"));
+
+  assert.deepEqual(visibleRecords.map((record) => record.id), ["ada"]);
+  assert.equal(totals.today.get("Ada|Gym").durationMs, 3_600_000);
+  assert.equal(totals.today.has("Ben|Gym"), false);
+});
+
+test("selected-person records are empty when no user is selected", () => {
+  const logic = loadAppLogic();
+  const records = [
+    {
+      id: "ada",
+      personName: "Ada",
+      activityName: "Gym",
+      startAt: 1,
+      stopAt: 2,
+      durationMs: 1,
+    },
+  ];
+
+  assert.deepEqual(JSON.parse(JSON.stringify(logic.getRecordsForPerson(records, ""))), []);
+});
+
+test("deleting a record removes it from history and totals", () => {
+  const logic = loadAppLogic();
+  const state = logic.createInitialState();
+  state.records = [
+    {
+      id: "keep",
+      personName: "Ada",
+      activityName: "Gym",
+      startAt: new Date("2026-06-07T08:00:00").getTime(),
+      stopAt: new Date("2026-06-07T09:00:00").getTime(),
+      durationMs: 3_600_000,
+    },
+    {
+      id: "delete",
+      personName: "Ada",
+      activityName: "Swimming",
+      startAt: new Date("2026-06-07T10:00:00").getTime(),
+      stopAt: new Date("2026-06-07T10:30:00").getTime(),
+      durationMs: 1_800_000,
+    },
+  ];
+
+  const deleted = logic.deleteRecord(state, "delete");
+  const totals = logic.getTotals(state.records, new Date("2026-06-07T12:00:00"));
+
+  assert.equal(deleted.id, "delete");
+  assert.deepEqual(state.records.map((record) => record.id), ["keep"]);
+  assert.equal(totals.today.has("Ada|Swimming"), false);
+  assert.equal(totals.today.get("Ada|Gym").durationMs, 3_600_000);
+});
+
+test("deleting a missing record throws", () => {
+  const logic = loadAppLogic();
+  const state = logic.createInitialState();
+
+  assert.throws(() => logic.deleteRecord(state, "missing"), /Record not found/);
+});
+
 test("remote store reads authenticated JSON content by path", async () => {
   const logic = loadAppLogic();
   const calls = [];

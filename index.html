@@ -314,6 +314,41 @@
         padding-bottom: 0;
       }
 
+      .record-shell {
+        position: relative;
+        overflow: hidden;
+        border-bottom: 1px solid var(--surface-2);
+      }
+
+      .record-shell:last-child {
+        border-bottom: 0;
+      }
+
+      .record-shell .record {
+        position: relative;
+        z-index: 1;
+        border-bottom: 0;
+        background: var(--surface);
+        touch-action: pan-y;
+        transition: transform 160ms ease;
+      }
+
+      .record-shell.is-open .record {
+        transform: translateX(-88px);
+      }
+
+      .record-shell .delete-record {
+        position: absolute;
+        inset: 0 0 10px auto;
+        width: 76px;
+        min-height: 0;
+        border-radius: 8px;
+      }
+
+      .record-shell:last-child .delete-record {
+        bottom: 0;
+      }
+
       .record-title,
       .total-title {
         font-weight: 620;
@@ -607,6 +642,16 @@
           return record;
         }
 
+        function deleteRecord(state, recordId) {
+          const index = state.records.findIndex((record) => record.id === recordId);
+          if (index === -1) {
+            throw new Error("Record not found.");
+          }
+          const deleted = state.records[index];
+          state.records.splice(index, 1);
+          return deleted;
+        }
+
         function getTotals(records, referenceDate) {
           const today = new Map();
           const allTime = new Map();
@@ -620,6 +665,14 @@
           });
 
           return { today, allTime };
+        }
+
+        function getRecordsForPerson(records, personName) {
+          const cleanPerson = normalizeName(personName);
+          if (!cleanPerson) {
+            return [];
+          }
+          return records.filter((record) => record.personName === cleanPerson);
         }
 
         function addTotal(map, record) {
@@ -894,7 +947,9 @@
           addActivity,
           startSession,
           stopSession,
+          deleteRecord,
           getTotals,
+          getRecordsForPerson,
           formatDuration,
           hydrateState,
           createLocalStore,
@@ -1230,14 +1285,24 @@
 
         function renderHistory() {
           clear(els.historyList);
-          if (!state.records.length) {
-            els.historyList.appendChild(emptyNode("Completed sessions will appear here."));
+          const records = logic.getRecordsForPerson(state.records, state.selectedPerson);
+
+          if (!state.selectedPerson) {
+            els.historyList.appendChild(emptyNode("Select a person to see records."));
+            return;
+          }
+          if (!records.length) {
+            els.historyList.appendChild(emptyNode("This person has no completed sessions yet."));
             return;
           }
 
-          state.records.slice(0, 20).forEach((record) => {
+          records.slice(0, 20).forEach((record) => {
+            const shell = document.createElement("div");
+            shell.className = "record-shell";
+
             const item = document.createElement("div");
             item.className = "record";
+            item.tabIndex = 0;
 
             const body = document.createElement("div");
             const title = document.createElement("div");
@@ -1254,21 +1319,76 @@
 
             body.append(title, detail);
             item.append(body, duration);
-            els.historyList.appendChild(item);
+
+            const deleteButton = document.createElement("button");
+            deleteButton.type = "button";
+            deleteButton.className = "delete-record danger";
+            deleteButton.textContent = "Delete";
+            deleteButton.setAttribute("aria-label", "Delete " + record.personName + " " + record.activityName + " record");
+            deleteButton.addEventListener("click", () => {
+              tryAction(() => {
+                logic.deleteRecord(state, record.id);
+              });
+            });
+
+            attachSwipeToReveal(item, shell);
+            shell.append(deleteButton, item);
+            els.historyList.appendChild(shell);
+          });
+        }
+
+        function attachSwipeToReveal(item, shell) {
+          let startX = 0;
+          let startY = 0;
+          let isSwiping = false;
+
+          item.addEventListener("pointerdown", (event) => {
+            startX = event.clientX;
+            startY = event.clientY;
+            isSwiping = true;
+          });
+
+          item.addEventListener("pointerup", (event) => {
+            if (!isSwiping) {
+              return;
+            }
+            isSwiping = false;
+
+            const deltaX = event.clientX - startX;
+            const deltaY = event.clientY - startY;
+            if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY)) {
+              return;
+            }
+
+            shell.classList.toggle("is-open", deltaX < 0);
+          });
+
+          item.addEventListener("keydown", (event) => {
+            if (event.key === "ArrowLeft") {
+              shell.classList.add("is-open");
+            }
+            if (event.key === "ArrowRight" || event.key === "Escape") {
+              shell.classList.remove("is-open");
+            }
           });
         }
 
         function renderTotals() {
           clear(els.totalsList);
-          const totals = logic.getTotals(state.records, new Date());
+          const records = logic.getRecordsForPerson(state.records, state.selectedPerson);
+          const totals = logic.getTotals(records, new Date());
           const map = state.totalRange === "allTime" ? totals.allTime : totals.today;
           const rows = Array.from(map.values()).sort((a, b) => b.durationMs - a.durationMs);
 
           els.todayTab.classList.toggle("is-selected", state.totalRange !== "allTime");
           els.allTimeTab.classList.toggle("is-selected", state.totalRange === "allTime");
 
+          if (!state.selectedPerson) {
+            els.totalsList.appendChild(emptyNode("Select a person to see totals."));
+            return;
+          }
           if (!rows.length) {
-            els.totalsList.appendChild(emptyNode("No totals for this range yet."));
+            els.totalsList.appendChild(emptyNode("No totals for this person yet."));
             return;
           }
 
