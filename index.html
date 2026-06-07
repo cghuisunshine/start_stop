@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Activity Time</title>
+    <link rel="icon" href="data:,">
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f5f1;
+        --surface: #ffffff;
+        --surface-2: #eeece6;
+        --border: #d9d5ca;
+        --text: #1f241f;
+        --muted: #6f746c;
+        --primary: #2f6f4e;
+        --primary-strong: #20553a;
+        --danger: #9d3d33;
+        --danger-bg: #f7e8e5;
+        --focus: rgba(47, 111, 78, 0.22);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+        font-size: 15px;
+        line-height: 1.45;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+        min-height: 38px;
+        padding: 8px 12px;
+      }
+
+      button:hover {
+        border-color: #bdb7aa;
+      }
+
+      button:focus,
+      input:focus {
+        outline: 3px solid var(--focus);
+        outline-offset: 1px;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      input {
+        width: 100%;
+        min-height: 38px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+        padding: 8px 10px;
+      }
+
+      .app {
+        display: grid;
+        grid-template-columns: 260px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        border-right: 1px solid var(--border);
+        background: var(--surface-2);
+        padding: 22px 18px;
+      }
+
+      .main {
+        padding: 28px;
+      }
+
+      .title {
+        margin: 0 0 4px;
+        font-size: 22px;
+        font-weight: 650;
+        letter-spacing: 0;
+      }
+
+      .description {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .section {
+        margin-top: 24px;
+      }
+
+      .section:first-child {
+        margin-top: 0;
+      }
+
+      .section-title {
+        margin: 0 0 10px;
+        font-size: 14px;
+        font-weight: 650;
+      }
+
+      .person-form,
+      .activity-form {
+        display: flex;
+        gap: 8px;
+      }
+
+      .person-list,
+      .activity-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .person-row,
+      .activity-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .person-button,
+      .activity-button {
+        flex: 1;
+        text-align: left;
+      }
+
+      .person-button.is-selected,
+      .activity-button.is-selected {
+        border-color: var(--primary);
+        background: #e7efe9;
+        color: var(--primary-strong);
+      }
+
+      .icon-button {
+        width: 38px;
+        padding: 0;
+      }
+
+      .delete-button {
+        color: var(--danger);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+        gap: 20px;
+        align-items: start;
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 18px;
+      }
+
+      .timer {
+        display: grid;
+        gap: 16px;
+      }
+
+      .timer-readout {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 16px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #faf9f6;
+        padding: 18px;
+      }
+
+      .timer-time {
+        font-size: clamp(36px, 7vw, 72px);
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+      }
+
+      .timer-meta {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .primary {
+        border-color: var(--primary);
+        background: var(--primary);
+        color: #ffffff;
+      }
+
+      .primary:hover {
+        border-color: var(--primary-strong);
+        background: var(--primary-strong);
+      }
+
+      .danger {
+        border-color: var(--danger);
+        background: var(--danger);
+        color: #ffffff;
+      }
+
+      .danger:hover {
+        border-color: #7f2d25;
+        background: #7f2d25;
+      }
+
+      .status {
+        min-height: 22px;
+        color: var(--muted);
+      }
+
+      .status.is-error {
+        color: var(--danger);
+      }
+
+      .history-list,
+      .totals-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .record,
+      .total-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        border-bottom: 1px solid var(--surface-2);
+        padding-bottom: 10px;
+      }
+
+      .record:last-child,
+      .total-row:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+
+      .record-title,
+      .total-title {
+        font-weight: 620;
+      }
+
+      .record-detail,
+      .total-detail {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .duration {
+        font-variant-numeric: tabular-nums;
+        font-weight: 650;
+        white-space: nowrap;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .tab.is-selected {
+        border-color: var(--primary);
+        color: var(--primary-strong);
+      }
+
+      .empty {
+        border: 1px dashed var(--border);
+        border-radius: 8px;
+        color: var(--muted);
+        padding: 16px;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      @media (max-width: 900px) {
+        .app,
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: 0;
+          border-bottom: 1px solid var(--border);
+        }
+
+        .main {
+          padding: 20px;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .person-form,
+        .activity-form,
+        .timer-readout,
+        .record,
+        .total-row {
+          display: grid;
+          grid-template-columns: 1fr;
+        }
+
+        .timer-time {
+          font-size: 44px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <h1 class="title">Activity Time</h1>
+        <p class="description">Start, stop, and keep the log.</p>
+
+        <section class="section" aria-labelledby="people-title">
+          <h2 class="section-title" id="people-title">People</h2>
+          <form class="person-form" id="person-form">
+            <input id="person-input" autocomplete="off" placeholder="Add person">
+            <button type="submit">Add</button>
+          </form>
+          <div class="person-list" id="person-list"></div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="layout">
+          <section class="panel timer" aria-labelledby="timer-title">
+            <div>
+              <h2 class="section-title" id="timer-title">Timer</h2>
+              <p class="description" id="current-person">No person selected</p>
+            </div>
+
+            <div class="timer-readout">
+              <div>
+                <div class="timer-time" id="elapsed">0s</div>
+                <div class="timer-meta" id="timer-meta">Choose a person and activity.</div>
+              </div>
+              <div class="duration" id="active-since"></div>
+            </div>
+
+            <div>
+              <h3 class="section-title">Activities</h3>
+              <form class="activity-form" id="activity-form">
+                <input id="activity-input" autocomplete="off" placeholder="Add activity">
+                <button type="submit">Add</button>
+              </form>
+              <div class="activity-list" id="activity-list"></div>
+            </div>
+
+            <div class="actions">
+              <button class="primary" id="start-button" type="button">Start</button>
+              <button class="danger" id="stop-button" type="button">Stop</button>
+            </div>
+            <div class="status" id="status" role="status"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="totals-title">
+            <h2 class="section-title" id="totals-title">Totals</h2>
+            <div class="tabs" role="tablist" aria-label="Total range">
+              <button class="tab is-selected" id="today-tab" type="button">Today</button>
+              <button class="tab" id="all-time-tab" type="button">All time</button>
+            </div>
+            <div class="totals-list" id="totals-list"></div>
+          </section>
+        </div>
+
+        <section class="panel section" aria-labelledby="history-title">
+          <h2 class="section-title" id="history-title">Recent records</h2>
+          <div class="history-list" id="history-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <script id="app-logic" type="text/javascript">
+      (function () {
+        const DEFAULT_ACTIVITIES = ["Gym", "Swimming"];
+
+        function createInitialState() {
+          return {
+            version: 1,
+            people: [],
+            activities: [...DEFAULT_ACTIVITIES],
+            selectedPerson: "",
+            selectedActivity: DEFAULT_ACTIVITIES[0],
+            activeSessions: {},
+            records: [],
+            totalRange: "today",
+          };
+        }
+
+        function normalizeName(name) {
+          return String(name || "").trim().replace(/\s+/g, " ");
+        }
+
+        function addPerson(state, name) {
+          const personName = normalizeName(name);
+          if (!personName) {
+            throw new Error("Enter a person name.");
+          }
+          if (!state.people.includes(personName)) {
+            state.people.push(personName);
+          }
+          if (!state.selectedPerson) {
+            state.selectedPerson = personName;
+          }
+          return personName;
+        }
+
+        function removePerson(state, name) {
+          const personName = normalizeName(name);
+          if (state.activeSessions[personName]) {
+            throw new Error("Stop this person's active session before deleting the profile.");
+          }
+          state.people = state.people.filter((person) => person !== personName);
+          if (state.selectedPerson === personName) {
+            state.selectedPerson = state.people[0] || "";
+          }
+        }
+
+        function addActivity(state, name) {
+          const activityName = normalizeName(name);
+          if (!activityName) {
+            throw new Error("Enter an activity name.");
+          }
+          const existing = state.activities.find(
+            (activity) => activity.toLowerCase() === activityName.toLowerCase()
+          );
+          if (!existing) {
+            state.activities.push(activityName);
+            state.selectedActivity = activityName;
+            return activityName;
+          }
+          state.selectedActivity = existing;
+          return existing;
+        }
+
+        function startSession(state, personName, activityName, now) {
+          const cleanPerson = normalizeName(personName);
+          const cleanActivity = normalizeName(activityName);
+          if (!cleanPerson) {
+            throw new Error("Choose a person before starting.");
+          }
+          if (!cleanActivity) {
+            throw new Error("Choose an activity before starting.");
+          }
+          if (state.activeSessions[cleanPerson]) {
+            throw new Error(cleanPerson + " already has an active session.");
+          }
+          if (!state.people.includes(cleanPerson)) {
+            state.people.push(cleanPerson);
+          }
+          if (!state.activities.includes(cleanActivity)) {
+            state.activities.push(cleanActivity);
+          }
+
+          const startAt = Number.isFinite(now) ? now : Date.now();
+          const session = {
+            id: createId(),
+            personName: cleanPerson,
+            activityName: cleanActivity,
+            startAt,
+          };
+          state.activeSessions[cleanPerson] = session;
+          state.selectedPerson = cleanPerson;
+          state.selectedActivity = cleanActivity;
+          return session;
+        }
+
+        function stopSession(state, personName, now) {
+          const cleanPerson = normalizeName(personName);
+          const session = state.activeSessions[cleanPerson];
+          if (!session) {
+            throw new Error("There is no active session to stop.");
+          }
+
+          const stopAt = Number.isFinite(now) ? now : Date.now();
+          const durationMs = Math.max(0, stopAt - session.startAt);
+          const record = {
+            id: session.id,
+            personName: session.personName,
+            activityName: session.activityName,
+            startAt: session.startAt,
+            stopAt,
+            durationMs,
+          };
+
+          state.records.unshift(record);
+          delete state.activeSessions[cleanPerson];
+          return record;
+        }
+
+        function getTotals(records, referenceDate) {
+          const today = new Map();
+          const allTime = new Map();
+          const day = referenceDate || new Date();
+
+          records.forEach((record) => {
+            addTotal(allTime, record);
+            if (isSameLocalDay(new Date(record.startAt), day)) {
+              addTotal(today, record);
+            }
+          });
+
+          return { today, allTime };
+        }
+
+        function addTotal(map, record) {
+          const key = record.personName + "|" + record.activityName;
+          const current = map.get(key) || {
+            personName: record.personName,
+            activityName: record.activityName,
+            durationMs: 0,
+            count: 0,
+          };
+          current.durationMs += record.durationMs;
+          current.count += 1;
+          map.set(key, current);
+        }
+
+        function isSameLocalDay(a, b) {
+          return (
+            a.getFullYear() === b.getFullYear() &&
+            a.getMonth() === b.getMonth() &&
+            a.getDate() === b.getDate()
+          );
+        }
+
+        function formatDuration(ms) {
+          const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+          const hours = Math.floor(totalSeconds / 3600);
+          const minutes = Math.floor((totalSeconds % 3600) / 60);
+          const seconds = totalSeconds % 60;
+          const parts = [];
+
+          if (hours) {
+            parts.push(hours + "h");
+          }
+          if (minutes || hours) {
+            parts.push(minutes + "m");
+          }
+          parts.push(seconds + "s");
+          return parts.join(" ");
+        }
+
+        function createId() {
+          if (window.crypto && typeof window.crypto.randomUUID === "function") {
+            return window.crypto.randomUUID();
+          }
+          return "session-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+        }
+
+        window.StartStopLogic = {
+          createInitialState,
+          addPerson,
+          removePerson,
+          addActivity,
+          startSession,
+          stopSession,
+          getTotals,
+          formatDuration,
+        };
+      })();
+    </script>
+
+    <script type="text/javascript">
+      (function () {
+        const STORAGE_KEY = "start-stop-activity-state-v1";
+        const logic = window.StartStopLogic;
+        let state = loadState();
+
+        const els = {
+          personForm: document.querySelector("#person-form"),
+          personInput: document.querySelector("#person-input"),
+          personList: document.querySelector("#person-list"),
+          activityForm: document.querySelector("#activity-form"),
+          activityInput: document.querySelector("#activity-input"),
+          activityList: document.querySelector("#activity-list"),
+          currentPerson: document.querySelector("#current-person"),
+          elapsed: document.querySelector("#elapsed"),
+          timerMeta: document.querySelector("#timer-meta"),
+          activeSince: document.querySelector("#active-since"),
+          startButton: document.querySelector("#start-button"),
+          stopButton: document.querySelector("#stop-button"),
+          status: document.querySelector("#status"),
+          historyList: document.querySelector("#history-list"),
+          totalsList: document.querySelector("#totals-list"),
+          todayTab: document.querySelector("#today-tab"),
+          allTimeTab: document.querySelector("#all-time-tab"),
+        };
+
+        els.personForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          tryAction(() => {
+            const personName = logic.addPerson(state, els.personInput.value);
+            state.selectedPerson = personName;
+            els.personInput.value = "";
+          });
+        });
+
+        els.activityForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          tryAction(() => {
+            logic.addActivity(state, els.activityInput.value);
+            els.activityInput.value = "";
+          });
+        });
+
+        els.startButton.addEventListener("click", () => {
+          tryAction(() => {
+            logic.startSession(state, state.selectedPerson, state.selectedActivity, Date.now());
+          });
+        });
+
+        els.stopButton.addEventListener("click", () => {
+          tryAction(() => {
+            logic.stopSession(state, state.selectedPerson, Date.now());
+          });
+        });
+
+        els.todayTab.addEventListener("click", () => {
+          state.totalRange = "today";
+          saveAndRender();
+        });
+
+        els.allTimeTab.addEventListener("click", () => {
+          state.totalRange = "allTime";
+          saveAndRender();
+        });
+
+        setInterval(renderTimerOnly, 1000);
+        render();
+
+        function loadState() {
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) {
+              return logic.createInitialState();
+            }
+            const saved = JSON.parse(raw);
+            return {
+              ...logic.createInitialState(),
+              ...saved,
+              people: Array.isArray(saved.people) ? saved.people : [],
+              activities: Array.isArray(saved.activities) && saved.activities.length
+                ? saved.activities
+                : logic.createInitialState().activities,
+              activeSessions: saved.activeSessions || {},
+              records: Array.isArray(saved.records) ? saved.records : [],
+            };
+          } catch {
+            return logic.createInitialState();
+          }
+        }
+
+        function saveState() {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        function tryAction(action) {
+          try {
+            action();
+            setStatus("");
+            saveAndRender();
+          } catch (error) {
+            setStatus(error.message, true);
+            render();
+          }
+        }
+
+        function saveAndRender() {
+          saveState();
+          render();
+        }
+
+        function render() {
+          renderPeople();
+          renderActivities();
+          renderTimerOnly();
+          renderHistory();
+          renderTotals();
+        }
+
+        function renderPeople() {
+          clear(els.personList);
+          if (!state.people.length) {
+            els.personList.appendChild(emptyNode("Add a person to begin."));
+            return;
+          }
+
+          state.people.forEach((person) => {
+            const row = document.createElement("div");
+            row.className = "person-row";
+
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "person-button" + (person === state.selectedPerson ? " is-selected" : "");
+            button.textContent = person;
+            button.addEventListener("click", () => {
+              state.selectedPerson = person;
+              setStatus("");
+              saveAndRender();
+            });
+
+            const deleteButton = document.createElement("button");
+            deleteButton.type = "button";
+            deleteButton.className = "icon-button delete-button";
+            deleteButton.textContent = "x";
+            deleteButton.title = "Delete " + person;
+            deleteButton.setAttribute("aria-label", "Delete " + person);
+            deleteButton.addEventListener("click", () => {
+              tryAction(() => logic.removePerson(state, person));
+            });
+
+            row.append(button, deleteButton);
+            els.personList.appendChild(row);
+          });
+        }
+
+        function renderActivities() {
+          clear(els.activityList);
+          state.activities.forEach((activity) => {
+            const row = document.createElement("div");
+            row.className = "activity-row";
+
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "activity-button" + (activity === state.selectedActivity ? " is-selected" : "");
+            button.textContent = activity;
+            button.addEventListener("click", () => {
+              state.selectedActivity = activity;
+              setStatus("");
+              saveAndRender();
+            });
+
+            row.appendChild(button);
+            els.activityList.appendChild(row);
+          });
+        }
+
+        function renderTimerOnly() {
+          const selectedPerson = state.selectedPerson;
+          const activeSession = selectedPerson ? state.activeSessions[selectedPerson] : null;
+
+          els.currentPerson.textContent = selectedPerson || "No person selected";
+          els.startButton.disabled = !selectedPerson || !state.selectedActivity || Boolean(activeSession);
+          els.stopButton.disabled = !selectedPerson || !activeSession;
+
+          if (!selectedPerson) {
+            els.elapsed.textContent = "0s";
+            els.timerMeta.textContent = "Choose a person and activity.";
+            els.activeSince.textContent = "";
+            return;
+          }
+
+          if (activeSession) {
+            els.elapsed.textContent = logic.formatDuration(Date.now() - activeSession.startAt);
+            els.timerMeta.textContent = activeSession.activityName + " is running.";
+            els.activeSince.textContent = "Started " + formatTime(activeSession.startAt);
+            return;
+          }
+
+          els.elapsed.textContent = "0s";
+          els.timerMeta.textContent = "Ready to start " + state.selectedActivity + ".";
+          els.activeSince.textContent = "";
+        }
+
+        function renderHistory() {
+          clear(els.historyList);
+          if (!state.records.length) {
+            els.historyList.appendChild(emptyNode("Completed sessions will appear here."));
+            return;
+          }
+
+          state.records.slice(0, 20).forEach((record) => {
+            const item = document.createElement("div");
+            item.className = "record";
+
+            const body = document.createElement("div");
+            const title = document.createElement("div");
+            title.className = "record-title";
+            title.textContent = record.personName + " · " + record.activityName;
+
+            const detail = document.createElement("div");
+            detail.className = "record-detail";
+            detail.textContent = formatDateTime(record.startAt) + " to " + formatTime(record.stopAt);
+
+            const duration = document.createElement("div");
+            duration.className = "duration";
+            duration.textContent = logic.formatDuration(record.durationMs);
+
+            body.append(title, detail);
+            item.append(body, duration);
+            els.historyList.appendChild(item);
+          });
+        }
+
+        function renderTotals() {
+          clear(els.totalsList);
+          const totals = logic.getTotals(state.records, new Date());
+          const map = state.totalRange === "allTime" ? totals.allTime : totals.today;
+          const rows = Array.from(map.values()).sort((a, b) => b.durationMs - a.durationMs);
+
+          els.todayTab.classList.toggle("is-selected", state.totalRange !== "allTime");
+          els.allTimeTab.classList.toggle("is-selected", state.totalRange === "allTime");
+
+          if (!rows.length) {
+            els.totalsList.appendChild(emptyNode("No totals for this range yet."));
+            return;
+          }
+
+          rows.forEach((row) => {
+            const item = document.createElement("div");
+            item.className = "total-row";
+
+            const body = document.createElement("div");
+            const title = document.createElement("div");
+            title.className = "total-title";
+            title.textContent = row.personName + " · " + row.activityName;
+
+            const detail = document.createElement("div");
+            detail.className = "total-detail";
+            detail.textContent = row.count + (row.count === 1 ? " session" : " sessions");
+
+            const duration = document.createElement("div");
+            duration.className = "duration";
+            duration.textContent = logic.formatDuration(row.durationMs);
+
+            body.append(title, detail);
+            item.append(body, duration);
+            els.totalsList.appendChild(item);
+          });
+        }
+
+        function setStatus(message, isError) {
+          els.status.textContent = message;
+          els.status.classList.toggle("is-error", Boolean(isError));
+        }
+
+        function emptyNode(message) {
+          const node = document.createElement("div");
+          node.className = "empty";
+          node.textContent = message;
+          return node;
+        }
+
+        function clear(node) {
+          while (node.firstChild) {
+            node.removeChild(node.firstChild);
+          }
+        }
+
+        function formatDateTime(timestamp) {
+          return new Intl.DateTimeFormat(undefined, {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          }).format(new Date(timestamp));
+        }
+
+        function formatTime(timestamp) {
+          return new Intl.DateTimeFormat(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+          }).format(new Date(timestamp));
+        }
+      })();
+    </script>
+  </body>
+</html>
