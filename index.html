@@ -337,6 +337,15 @@
         transform: translateX(-88px);
       }
 
+      .record-shell.is-confirming-delete .record {
+        background: var(--danger-bg);
+        color: var(--danger);
+      }
+
+      .record-shell.is-confirming-delete .record-detail {
+        color: var(--danger);
+      }
+
       .record-shell .delete-record {
         position: absolute;
         inset: 0 0 10px auto;
@@ -1341,8 +1350,8 @@
         }
 
         function requestDeleteRecord(record, shell) {
-          shell.classList.remove("is-open");
           if (!window.confirm(logic.formatDeleteRecordPrompt(record))) {
+            shell.classList.remove("is-open", "is-confirming-delete");
             return;
           }
           tryAction(() => {
@@ -1374,7 +1383,8 @@
             }
 
             if (deltaX < 0) {
-              requestDeleteRecord(record, shell);
+              shell.classList.add("is-open", "is-confirming-delete");
+              window.setTimeout(() => requestDeleteRecord(record, shell), 220);
               return;
             }
 
