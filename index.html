@@ -828,6 +828,58 @@
           };
         }
 
+        function parseUrlAction(url) {
+          const parsedUrl = new URL(url);
+          const action = String(parsedUrl.searchParams.get("action") || "").toLowerCase();
+          const personName = normalizeName(parsedUrl.searchParams.get("person"));
+          const activityName = normalizeName(parsedUrl.searchParams.get("activity"));
+          const token = String(parsedUrl.searchParams.get("token") || "").trim();
+
+          if (!["start", "stop", "toggle"].includes(action)) {
+            return null;
+          }
+          if (!personName || !activityName) {
+            throw new Error("URL action needs person and activity.");
+          }
+
+          return {
+            action,
+            personName,
+            activityName,
+            token,
+          };
+        }
+
+        function applyUrlAction(state, urlAction, now) {
+          if (!urlAction) {
+            return null;
+          }
+
+          const activeSession = state.activeSessions[urlAction.personName];
+          const shouldStop = urlAction.action === "stop" || (urlAction.action === "toggle" && activeSession);
+          const shouldStart = urlAction.action === "start" || (urlAction.action === "toggle" && !activeSession);
+
+          if (shouldStop) {
+            const record = stopSession(state, urlAction.personName, now);
+            state.selectedPerson = record.personName;
+            state.selectedActivity = record.activityName;
+            return {
+              type: "stop",
+              message: "Stopped " + record.personName + " · " + record.activityName + ".",
+            };
+          }
+
+          if (shouldStart) {
+            const session = startSession(state, urlAction.personName, urlAction.activityName, now);
+            return {
+              type: "start",
+              message: "Started " + session.personName + " · " + session.activityName + ".",
+            };
+          }
+
+          return null;
+        }
+
         function createId() {
           if (window.crypto && typeof window.crypto.randomUUID === "function") {
             return window.crypto.randomUUID();
@@ -849,6 +901,8 @@
           createConfigStore,
           createRemoteStore,
           createPersistentStore,
+          parseUrlAction,
+          applyUrlAction,
         };
       })();
     </script>
@@ -862,6 +916,7 @@
           path: "/configs/start-stop-activity-state.json",
         };
         const logic = window.StartStopLogic;
+        const urlAction = readUrlAction();
         const localStore = logic.createLocalStore({
           storage: localStorage,
           key: STORAGE_KEY,
@@ -981,7 +1036,7 @@
         }
 
         function createStorage() {
-          const token = configStore.loadToken();
+          const token = urlAction && urlAction.token ? urlAction.token : configStore.loadToken();
           const remoteStore = token
             ? logic.createRemoteStore({
                 ...REMOTE_CONFIG,
@@ -993,7 +1048,7 @@
 
         async function reloadStorage() {
           isStorageLoading = true;
-          setStorageStatus(configStore.loadToken() ? "Loading remote storage..." : "Using local storage. Add a token for remote sync.");
+          setStorageStatus(getActiveToken() ? "Loading remote storage..." : "Using local storage. Add a token for remote sync.");
           renderTimerOnly();
 
           storage = createStorage();
@@ -1003,7 +1058,7 @@
 
           if (result.source === "remote") {
             setStorageStatus("Remote storage connected.");
-          } else if (configStore.loadToken() && result.source === "local") {
+          } else if (getActiveToken() && result.source === "local") {
             setStorageStatus("Using local backup. Remote storage unavailable.", true);
           } else if (result.source === "local") {
             setStorageStatus("Using local storage. Add a token for remote sync.");
@@ -1012,6 +1067,7 @@
             setStorageStatusFromSave(saveResult);
           }
 
+          await runUrlActionIfPresent();
           render();
         }
 
@@ -1023,11 +1079,56 @@
         function setStorageStatusFromSave(result) {
           if (result.source === "remote") {
             setStorageStatus("Saved to remote storage.");
-          } else if (configStore.loadToken()) {
+          } else if (getActiveToken()) {
             setStorageStatus("Saved locally. Remote storage unavailable.", true);
           } else {
             setStorageStatus("Saved to local storage.");
           }
+        }
+
+        function getActiveToken() {
+          return urlAction && urlAction.token ? urlAction.token : configStore.loadToken();
+        }
+
+        function readUrlAction() {
+          try {
+            const action = logic.parseUrlAction(window.location.href);
+            if (action && action.token) {
+              configStore.saveToken(action.token);
+            }
+            return action;
+          } catch (error) {
+            setTimeout(() => setStatus(error.message, true), 0);
+            return null;
+          }
+        }
+
+        async function runUrlActionIfPresent() {
+          if (!urlAction) {
+            return;
+          }
+
+          try {
+            const result = logic.applyUrlAction(state, urlAction, Date.now());
+            if (!result) {
+              return;
+            }
+            render();
+            const saveResult = await storage.save(state);
+            setStorageStatusFromSave(saveResult);
+            setStatus(result.message);
+          } catch (error) {
+            setStatus(error.message, true);
+          } finally {
+            clearUrlActionParams();
+          }
+        }
+
+        function clearUrlActionParams() {
+          if (!window.history || !window.history.replaceState) {
+            return;
+          }
+          window.history.replaceState(null, "", window.location.pathname + window.location.hash);
         }
 
         function closeConfigMenu() {

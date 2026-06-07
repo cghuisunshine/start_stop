@@ -34,6 +34,7 @@ function loadAppLogic() {
       },
     },
     setInterval() {},
+    URL,
   };
 
   vm.createContext(sandbox);
@@ -202,4 +203,82 @@ test("config store keeps bearer token in localStorage", () => {
 
   assert.equal(configStore.loadToken(), "");
   assert.equal(memory.has("remote-config"), false);
+});
+
+test("url action parses start command for Peter Gym", () => {
+  const logic = loadAppLogic();
+  const action = logic.parseUrlAction(
+    "https://example.test/index.html?action=start&person=Peter&activity=Gym&token=secret-token"
+  );
+
+  assert.deepEqual(JSON.parse(JSON.stringify(action)), {
+    action: "start",
+    personName: "Peter",
+    activityName: "Gym",
+    token: "secret-token",
+  });
+});
+
+test("url action starts and stops Peter Gym with current time", () => {
+  const logic = loadAppLogic();
+  const state = logic.createInitialState();
+
+  const startResult = logic.applyUrlAction(
+    state,
+    {
+      action: "start",
+      personName: "Peter",
+      activityName: "Gym",
+    },
+    10_000
+  );
+
+  assert.equal(startResult.message, "Started Peter · Gym.");
+  assert.equal(state.activeSessions.Peter.personName, "Peter");
+  assert.equal(state.activeSessions.Peter.activityName, "Gym");
+  assert.equal(state.activeSessions.Peter.startAt, 10_000);
+
+  const stopResult = logic.applyUrlAction(
+    state,
+    {
+      action: "stop",
+      personName: "Peter",
+      activityName: "Gym",
+    },
+    25_000
+  );
+
+  assert.equal(stopResult.message, "Stopped Peter · Gym.");
+  assert.equal(state.activeSessions.Peter, undefined);
+  assert.equal(state.records[0].personName, "Peter");
+  assert.equal(state.records[0].activityName, "Gym");
+  assert.equal(state.records[0].durationMs, 15_000);
+});
+
+test("url action toggles Peter Gym based on active session", () => {
+  const logic = loadAppLogic();
+  const state = logic.createInitialState();
+
+  const first = logic.applyUrlAction(
+    state,
+    {
+      action: "toggle",
+      personName: "Peter",
+      activityName: "Gym",
+    },
+    10_000
+  );
+  const second = logic.applyUrlAction(
+    state,
+    {
+      action: "toggle",
+      personName: "Peter",
+      activityName: "Gym",
+    },
+    13_000
+  );
+
+  assert.equal(first.message, "Started Peter · Gym.");
+  assert.equal(second.message, "Stopped Peter · Gym.");
+  assert.equal(state.records[0].durationMs, 3_000);
 });
