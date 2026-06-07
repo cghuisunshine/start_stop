@@ -42,6 +42,10 @@ function loadAppLogic() {
   return sandbox.window.StartStopLogic;
 }
 
+function loadIndexHtml() {
+  return readFileSync(new URL("../index.html", import.meta.url), "utf8");
+}
+
 test("starting a session prevents another active session for the same person", () => {
   const logic = loadAppLogic();
   const state = logic.createInitialState();
@@ -281,4 +285,17 @@ test("url action toggles Peter Gym based on active session", () => {
   assert.equal(first.message, "Started Peter · Gym.");
   assert.equal(second.message, "Stopped Peter · Gym.");
   assert.equal(state.records[0].durationMs, 3_000);
+});
+
+test("browser startup creates config store before reading URL actions", () => {
+  const html = loadIndexHtml();
+  const configStoreIndex = html.indexOf("const configStore = logic.createConfigStore");
+  const urlActionIndex = html.indexOf("const urlAction = readUrlAction()");
+
+  assert.notEqual(configStoreIndex, -1);
+  assert.notEqual(urlActionIndex, -1);
+  assert.ok(
+    configStoreIndex < urlActionIndex,
+    "configStore must be initialized before readUrlAction() can save URL tokens"
+  );
 });

@@ -916,7 +916,6 @@
           path: "/configs/start-stop-activity-state.json",
         };
         const logic = window.StartStopLogic;
-        const urlAction = readUrlAction();
         const localStore = logic.createLocalStore({
           storage: localStorage,
           key: STORAGE_KEY,
@@ -925,6 +924,7 @@
           storage: localStorage,
           key: CONFIG_KEY,
         });
+        const urlAction = readUrlAction();
         let state = logic.createInitialState();
         let storage = createStorage();
         let isStorageLoading = true;
