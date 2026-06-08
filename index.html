@@ -35,7 +35,8 @@
       }
 
       button,
-      input {
+      input,
+      select {
         font: inherit;
       }
 
@@ -54,7 +55,8 @@
       }
 
       button:focus,
-      input:focus {
+      input:focus,
+      select:focus {
         outline: 3px solid var(--focus);
         outline-offset: 1px;
       }
@@ -64,7 +66,8 @@
         opacity: 0.55;
       }
 
-      input {
+      input,
+      select {
         width: 100%;
         min-height: 38px;
         border: 1px solid var(--border);
@@ -139,40 +142,10 @@
         gap: 8px;
       }
 
-      .person-list,
-      .activity-list {
-        display: grid;
-        gap: 8px;
-        margin-top: 12px;
-      }
-
-      .person-row,
-      .activity-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .person-button,
-      .activity-button {
-        flex: 1;
-        text-align: left;
-      }
-
-      .person-button.is-selected,
-      .activity-button.is-selected {
-        border-color: var(--primary);
-        background: #e7efe9;
-        color: var(--primary-strong);
-      }
-
-      .icon-button {
-        width: 38px;
-        padding: 0;
-      }
-
-      .delete-button {
-        color: var(--danger);
+      .field-label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 620;
       }
 
       .config-wrap {
@@ -185,9 +158,9 @@
       }
 
       .config-menu {
-        position: absolute;
-        top: 46px;
-        right: 0;
+        position: fixed;
+        top: 68px;
+        left: 18px;
         z-index: 5;
         width: min(320px, calc(100vw - 36px));
         border: 1px solid var(--border);
@@ -200,6 +173,18 @@
         display: block;
         margin-bottom: 6px;
         font-weight: 620;
+      }
+
+      .menu-section {
+        border-bottom: 1px solid var(--surface-2);
+        margin-bottom: 14px;
+        padding-bottom: 14px;
+      }
+
+      .menu-section:last-child {
+        border-bottom: 0;
+        margin-bottom: 0;
+        padding-bottom: 0;
       }
 
       .config-help {
@@ -440,26 +425,44 @@
           </div>
           <div class="config-wrap">
             <button class="menu-button" id="config-toggle" type="button" aria-expanded="false" aria-controls="config-menu" aria-label="Storage settings">☰</button>
-            <form class="config-menu hidden" id="config-menu">
-              <label for="remote-token">Remote token</label>
-              <input id="remote-token" autocomplete="off" type="password" placeholder="Bearer token">
-              <p class="config-help">Saved in this browser. Leave empty to use local storage only.</p>
-              <div class="config-actions">
-                <button id="clear-token" type="button">Clear</button>
-                <button class="primary" type="submit">Save</button>
-              </div>
-            </form>
+            <div class="config-menu hidden" id="config-menu">
+              <section class="menu-section" aria-labelledby="add-person-title">
+                <h2 class="section-title" id="add-person-title">Add person</h2>
+                <form class="person-form" id="person-form">
+                  <input id="person-input" autocomplete="off" placeholder="Name">
+                  <button type="submit">Add</button>
+                </form>
+              </section>
+
+              <section class="menu-section" aria-labelledby="add-activity-title">
+                <h2 class="section-title" id="add-activity-title">Add activity</h2>
+                <form class="activity-form" id="activity-form">
+                  <input id="activity-input" autocomplete="off" placeholder="Activity">
+                  <button type="submit">Add</button>
+                </form>
+              </section>
+
+              <section class="menu-section" aria-labelledby="remote-title">
+                <h2 class="section-title" id="remote-title">Remote storage</h2>
+                <form id="token-form">
+                  <label for="remote-token">Remote token</label>
+                  <input id="remote-token" autocomplete="off" type="password" placeholder="Bearer token">
+                  <p class="config-help">Saved in this browser. Leave empty to use local storage only.</p>
+                  <div class="config-actions">
+                    <button id="clear-token" type="button">Clear</button>
+                    <button class="primary" type="submit">Save</button>
+                  </div>
+                </form>
+              </section>
+            </div>
           </div>
         </div>
         <p class="storage-status" id="storage-status">Loading remote storage...</p>
 
         <section class="section" aria-labelledby="people-title">
-          <h2 class="section-title" id="people-title">People</h2>
-          <form class="person-form" id="person-form">
-            <input id="person-input" autocomplete="off" placeholder="Add person">
-            <button type="submit">Add</button>
-          </form>
-          <div class="person-list" id="person-list"></div>
+          <h2 class="section-title" id="people-title">Person</h2>
+          <label class="field-label" for="person-select">Current person</label>
+          <select id="person-select"></select>
         </section>
       </aside>
 
@@ -480,12 +483,9 @@
             </div>
 
             <div>
-              <h3 class="section-title">Activities</h3>
-              <form class="activity-form" id="activity-form">
-                <input id="activity-input" autocomplete="off" placeholder="Add activity">
-                <button type="submit">Add</button>
-              </form>
-              <div class="activity-list" id="activity-list"></div>
+              <h3 class="section-title">Activity</h3>
+              <label class="field-label" for="activity-select">Current activity</label>
+              <select id="activity-select"></select>
             </div>
 
             <div class="actions">
@@ -1001,10 +1001,10 @@
         const els = {
           personForm: document.querySelector("#person-form"),
           personInput: document.querySelector("#person-input"),
-          personList: document.querySelector("#person-list"),
+          personSelect: document.querySelector("#person-select"),
           activityForm: document.querySelector("#activity-form"),
           activityInput: document.querySelector("#activity-input"),
-          activityList: document.querySelector("#activity-list"),
+          activitySelect: document.querySelector("#activity-select"),
           currentPerson: document.querySelector("#current-person"),
           elapsed: document.querySelector("#elapsed"),
           timerMeta: document.querySelector("#timer-meta"),
@@ -1015,6 +1015,7 @@
           storageStatus: document.querySelector("#storage-status"),
           configToggle: document.querySelector("#config-toggle"),
           configMenu: document.querySelector("#config-menu"),
+          tokenForm: document.querySelector("#token-form"),
           remoteToken: document.querySelector("#remote-token"),
           clearToken: document.querySelector("#clear-token"),
           historyList: document.querySelector("#history-list"),
@@ -1032,12 +1033,24 @@
           });
         });
 
+        els.personSelect.addEventListener("change", () => {
+          state.selectedPerson = els.personSelect.value;
+          setStatus("");
+          saveAndRender();
+        });
+
         els.activityForm.addEventListener("submit", (event) => {
           event.preventDefault();
           tryAction(() => {
             logic.addActivity(state, els.activityInput.value);
             els.activityInput.value = "";
           });
+        });
+
+        els.activitySelect.addEventListener("change", () => {
+          state.selectedActivity = els.activitySelect.value;
+          setStatus("");
+          saveAndRender();
         });
 
         els.startButton.addEventListener("click", () => {
@@ -1071,7 +1084,7 @@
           }
         });
 
-        els.configMenu.addEventListener("submit", (event) => {
+        els.tokenForm.addEventListener("submit", (event) => {
           event.preventDefault();
           configStore.saveToken(els.remoteToken.value);
           closeConfigMenu();
@@ -1214,59 +1227,42 @@
         }
 
         function renderPeople() {
-          clear(els.personList);
+          clear(els.personSelect);
           if (!state.people.length) {
-            els.personList.appendChild(emptyNode("Add a person to begin."));
+            state.selectedPerson = "";
+            els.personSelect.disabled = true;
+            els.personSelect.appendChild(optionNode("", "Add a person"));
             return;
           }
 
+          if (!state.people.includes(state.selectedPerson)) {
+            state.selectedPerson = state.people[0];
+          }
+          els.personSelect.disabled = false;
           state.people.forEach((person) => {
-            const row = document.createElement("div");
-            row.className = "person-row";
-
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "person-button" + (person === state.selectedPerson ? " is-selected" : "");
-            button.textContent = person;
-            button.addEventListener("click", () => {
-              state.selectedPerson = person;
-              setStatus("");
-              saveAndRender();
-            });
-
-            const deleteButton = document.createElement("button");
-            deleteButton.type = "button";
-            deleteButton.className = "icon-button delete-button";
-            deleteButton.textContent = "x";
-            deleteButton.title = "Delete " + person;
-            deleteButton.setAttribute("aria-label", "Delete " + person);
-            deleteButton.addEventListener("click", () => {
-              tryAction(() => logic.removePerson(state, person));
-            });
-
-            row.append(button, deleteButton);
-            els.personList.appendChild(row);
+            const option = optionNode(person, person);
+            option.selected = person === state.selectedPerson;
+            els.personSelect.appendChild(option);
           });
         }
 
         function renderActivities() {
-          clear(els.activityList);
+          clear(els.activitySelect);
+          if (!state.activities.length) {
+            state.selectedActivity = "";
+            els.activitySelect.disabled = true;
+            els.activitySelect.appendChild(optionNode("", "Add an activity"));
+            return;
+          }
+
+          if (!state.activities.includes(state.selectedActivity)) {
+            state.selectedActivity = state.activities[0];
+          }
+          els.activitySelect.disabled = false;
           state.activities.forEach((activity) => {
-            const row = document.createElement("div");
-            row.className = "activity-row";
-
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "activity-button" + (activity === state.selectedActivity ? " is-selected" : "");
-            button.textContent = activity;
-            button.addEventListener("click", () => {
-              state.selectedActivity = activity;
-              setStatus("");
-              saveAndRender();
-            });
-
-            row.appendChild(button);
-            els.activityList.appendChild(row);
+            const option = optionNode(activity, activity);
+            option.selected = activity === state.selectedActivity;
+            els.activitySelect.appendChild(option);
           });
         }
 
@@ -1458,6 +1454,13 @@
           node.className = "empty";
           node.textContent = message;
           return node;
+        }
+
+        function optionNode(value, label) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = label;
+          return option;
         }
 
         function clear(node) {

@@ -392,3 +392,24 @@ test("browser startup creates config store before reading URL actions", () => {
     "configStore must be initialized before readUrlAction() can save URL tokens"
   );
 });
+
+test("compact UI uses dropdowns for person and activity selection", () => {
+  const html = loadIndexHtml();
+
+  assert.match(html, /<select[^>]+id="person-select"/);
+  assert.match(html, /<select[^>]+id="activity-select"/);
+  assert.doesNotMatch(html, /id="person-list"/);
+  assert.doesNotMatch(html, /id="activity-list"/);
+});
+
+test("add person and add activity forms live in the hamburger menu", () => {
+  const html = loadIndexHtml();
+  const menuStart = html.indexOf('id="config-menu"');
+  const menuEnd = html.indexOf('<p class="storage-status"', menuStart);
+  const menuMarkup = html.slice(menuStart, menuEnd);
+
+  assert.notEqual(menuStart, -1);
+  assert.match(menuMarkup, /id="person-form"/);
+  assert.match(menuMarkup, /id="activity-form"/);
+  assert.match(menuMarkup, /id="remote-token"/);
+});
