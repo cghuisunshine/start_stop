@@ -1336,26 +1336,18 @@
             deleteButton.textContent = "Delete";
             deleteButton.setAttribute("aria-label", "Delete " + record.personName + " " + record.activityName + " record");
             deleteButton.addEventListener("click", () => {
-              requestDeleteRecord(record, shell);
+              tryAction(() => {
+                logic.deleteRecord(state, record.id);
+              });
             });
 
-            attachSwipeToDelete(item, shell, record);
+            attachSwipeToDelete(item, shell);
             shell.append(deleteButton, item);
             els.historyList.appendChild(shell);
           });
         }
 
-        function requestDeleteRecord(record, shell) {
-          if (!window.confirm(logic.formatDeleteRecordPrompt(record))) {
-            shell.classList.remove("is-open", "is-confirming-delete");
-            return;
-          }
-          tryAction(() => {
-            logic.deleteRecord(state, record.id);
-          });
-        }
-
-        function attachSwipeToDelete(item, shell, record) {
+        function attachSwipeToDelete(item, shell) {
           let startX = 0;
           let startY = 0;
           let isSwiping = false;
@@ -1380,19 +1372,18 @@
 
             if (deltaX < 0) {
               shell.classList.add("is-open", "is-confirming-delete");
-              window.setTimeout(() => requestDeleteRecord(record, shell), 220);
               return;
             }
 
-            shell.classList.remove("is-open");
+            shell.classList.remove("is-open", "is-confirming-delete");
           });
 
           item.addEventListener("keydown", (event) => {
             if (event.key === "ArrowLeft") {
-              shell.classList.add("is-open");
+              shell.classList.add("is-open", "is-confirming-delete");
             }
             if (event.key === "ArrowRight" || event.key === "Escape") {
-              shell.classList.remove("is-open");
+              shell.classList.remove("is-open", "is-confirming-delete");
             }
           });
         }

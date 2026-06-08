@@ -413,3 +413,14 @@ test("add person and add activity forms live in the hamburger menu", () => {
   assert.match(menuMarkup, /id="activity-form"/);
   assert.match(menuMarkup, /id="remote-token"/);
 });
+
+test("swiping a record reveals Delete without opening a prompt", () => {
+  const html = loadIndexHtml();
+
+  assert.doesNotMatch(html, /window\.confirm\(logic\.formatDeleteRecordPrompt/);
+  assert.doesNotMatch(html, /window\.setTimeout\(\(\) => requestDeleteRecord/);
+  assert.match(
+    html,
+    /deleteButton\.addEventListener\("click", \(\) => \{\s*tryAction\(\(\) => \{\s*logic\.deleteRecord\(state, record\.id\);/s
+  );
+});
